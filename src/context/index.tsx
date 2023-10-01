@@ -1,5 +1,5 @@
 import { useContext } from 'react';
-import { AppContext } from './provider';
+import { AppContext } from './context';
 
 function useAppContext() {
   return useContext(AppContext);

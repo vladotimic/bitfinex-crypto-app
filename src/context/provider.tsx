@@ -1,44 +1,7 @@
-import { useReducer, createContext, useEffect, useRef } from 'react';
-import { ICurrency, ACTION_TYPE } from '../types';
+import { useReducer, useEffect, useRef } from 'react';
+import { ACTION_TYPE } from '../types';
 import reducer from './reducer';
-
-export interface InitialState {
-  user: boolean;
-  isLoading: boolean;
-  error: string;
-  currencies: ICurrency[];
-  favorites: string[];
-  tickers: string[];
-  channels: {
-    [key: number]: string;
-  };
-  addToFavorite: (id: string) => void;
-  removeFromFavorite: (id: string) => void;
-  login: () => void;
-}
-
-const getSession = (name: string, fallback: boolean | [] | object) => {
-  const session = sessionStorage.getItem(name);
-  if (session) {
-    return JSON.parse(session);
-  }
-  return fallback;
-};
-
-const initialState: InitialState = {
-  user: getSession('user', false),
-  isLoading: false,
-  error: '',
-  currencies: [],
-  favorites: getSession('favorites', []),
-  tickers: getSession('tickers', []),
-  channels: {},
-  addToFavorite: () => {},
-  removeFromFavorite: () => {},
-  login: () => {},
-};
-
-export const AppContext = createContext<InitialState>(initialState);
+import { initialState, AppContext } from './context';
 
 export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [state, dispatch] = useReducer(reducer, initialState);
@@ -92,7 +55,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
     ws.current.onopen = () => {
       if (ws.current?.readyState === WebSocket.OPEN) {
-        tickers.map((ticker) => {
+        tickers.map((ticker: string) => {
           ws.current?.send(
             JSON.stringify({
               symbol: `t${ticker.toUpperCase()}`,
@@ -134,7 +97,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         dispatch({ type: ACTION_TYPE.CURRENCIES_UPDATE, payload: currency });
       }
     };
-  }, [channels]);
+  }, [channels, ws]);
 
   return (
     <AppContext.Provider
