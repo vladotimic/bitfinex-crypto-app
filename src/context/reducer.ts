@@ -1,4 +1,4 @@
-import { InitialState } from './provider';
+import { InitialState } from './context';
 import { ICurrency, ACTION_TYPE } from '../types';
 
 type Actions =

@@ -1,11 +1,21 @@
-import { useReducer, useEffect, useRef } from 'react';
+import { useReducer, useEffect } from 'react';
 import { ACTION_TYPE } from '../types';
 import reducer from './reducer';
 import { initialState, AppContext } from './context';
+import useWebSocket, { ReadyState } from 'react-use-websocket';
+
+type IMessage = {
+  chanId: number;
+  channel: string;
+  event: string;
+  pair: string;
+  symbol: string;
+};
+
+type IResult = [number, number[]] & [number, string];
 
 export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [state, dispatch] = useReducer(reducer, initialState);
-
   const { tickers, channels } = state;
 
   const login = () => {
@@ -45,59 +55,48 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, [tickers]);
 
-  const ws = useRef<WebSocket | null>(null);
   const URL = import.meta.env.VITE_BITFINEX_WS;
+  const { readyState, sendJsonMessage, lastJsonMessage } = useWebSocket<
+    IMessage & IResult
+  >(URL);
 
   useEffect(() => {
-    if (!URL && !tickers) return;
-
-    ws.current = new WebSocket(URL);
-
-    ws.current.onopen = () => {
-      if (ws.current?.readyState === WebSocket.OPEN) {
-        tickers.map((ticker: string) => {
-          ws.current?.send(
-            JSON.stringify({
-              symbol: `t${ticker.toUpperCase()}`,
-              event: 'subscribe',
-              channel: 'ticker',
-            })
-          );
+    if (readyState === ReadyState.OPEN) {
+      tickers.map((ticker: string) => {
+        sendJsonMessage({
+          symbol: `t${ticker.toUpperCase()}`,
+          event: 'subscribe',
+          channel: 'ticker',
         });
-      }
-    };
-  }, [URL, tickers, ws]);
+      });
+    }
+  }, [readyState, tickers, sendJsonMessage]);
 
   useEffect(() => {
-    if (!ws.current) return;
-
-    const channelsArr = Object.values(channels);
-
-    ws.current.onmessage = (event) => {
-      const result = JSON.parse(event.data);
-
-      if (result?.event === 'subscribed') {
-        if (!channelsArr.includes(result.pair.toLowerCase())) {
+    if (lastJsonMessage) {
+      const channelsArr = Object.values(channels);
+      if (lastJsonMessage?.event === 'subscribed') {
+        if (!channelsArr.includes(lastJsonMessage.pair.toLowerCase())) {
           const channel = {
-            [result.chanId]: result.pair.toLowerCase(),
+            [lastJsonMessage.chanId]: lastJsonMessage.pair.toLowerCase(),
           };
           dispatch({ type: ACTION_TYPE.ADD_CHANNEL, payload: channel });
         }
       }
-      if (result[1] !== 'hb' && result[0] in channels) {
+      if (lastJsonMessage[1] !== 'hb' && lastJsonMessage[0] in channels) {
         const currency = {
-          id: channels[result[0]],
-          symbol: channels[result[0]].toUpperCase(),
-          lastPrice: result[1][6],
-          dailyChange: result[1][4],
-          dailyChangePercentage: result[1][5],
-          dailyHigh: result[1][8],
-          dailyLow: result[1][9],
+          id: channels[lastJsonMessage[0]],
+          symbol: channels[lastJsonMessage[0]].toUpperCase(),
+          lastPrice: lastJsonMessage[1][6],
+          dailyChange: lastJsonMessage[1][4],
+          dailyChangePercentage: lastJsonMessage[1][5],
+          dailyHigh: lastJsonMessage[1][8],
+          dailyLow: lastJsonMessage[1][9],
         };
         dispatch({ type: ACTION_TYPE.CURRENCIES_UPDATE, payload: currency });
       }
-    };
-  }, [channels, ws]);
+    }
+  }, [lastJsonMessage, channels]);
 
   return (
     <AppContext.Provider
